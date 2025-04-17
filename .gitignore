@@ -1,0 +1,6 @@
+/node_modules
+minify.js
+minified.txt
+.local.env
+.production.env
+.env
