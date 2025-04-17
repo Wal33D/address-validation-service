@@ -479,11 +479,6 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
 			}
 		});
 
-		/**
-		 * Simple health check route.
-		 */
-		app.get('/health', (_req: Request, res: Response) => res.send('OK'));
-
 		app.listen(Number(PORT), () => {
 			console.log(`Server running on port ${PORT}`);
 		});
