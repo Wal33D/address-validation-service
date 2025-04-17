@@ -29,7 +29,8 @@ if (
 		'Missing required environment variables for USPS or Google Maps.',
 	);
 }
-const PORT = Number(process.env.PORT ?? 3715);
+
+const PORT = 3715;
 
 // =====================================
 // Types and Interfaces
