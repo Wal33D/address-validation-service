@@ -16,7 +16,6 @@ const {
 	USPS_CONSUMER_KEY,
 	USPS_CONSUMER_SECRET,
 	GMAPS_API_KEY,
-	PORT = 3715,
 } = process.env;
 
 if (
@@ -30,6 +29,7 @@ if (
 		'Missing required environment variables for USPS or Google Maps.',
 	);
 }
+const PORT = Number(process.env.PORT ?? 3715);
 
 // =====================================
 // Types and Interfaces
@@ -39,6 +39,7 @@ export interface Geo {
 	type: 'Point';
 	coordinates: [number, number]; // [lng, lat]
 }
+
 
 
 /**
