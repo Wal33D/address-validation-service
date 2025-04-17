@@ -548,7 +548,7 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
 			},
 		);
 
-		app.listen(Number(PORT), () => {
+		app.listen(3715, () => {
 			console.log(`Server running on port ${PORT}`);
 		});
 	} catch (error) {
