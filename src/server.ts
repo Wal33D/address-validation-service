@@ -500,7 +500,7 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
 	if (geoResult.location.streetAddress) {
 		updatedLocation.streetAddress = geoResult.location.streetAddress;
 	}
-
+	delete updatedLocation.locality;
 	const error = uspsResult.error || geoResult.error;
 	const status = uspsResult.status && geoResult.status;
 
@@ -514,6 +514,14 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
 	try {
 		const app = express();
 		app.use(express.json());
+		// ---------- Health check ----------
+		// Responds with HTTP 200 and a tiny JSON payload. We register this **before**
+		// the local‑only middleware so external orchestrators (Docker‑Compose,
+		// Kubernetes, Heroku, etc.) can still probe the endpoint.
+		app.get('/health', (_req: Request, res: Response) => {
+			res.status(200).json({ status: 'ok' });
+		});
+
 		app.use(localOnlyMiddleware);
 
 		/**
@@ -529,6 +537,7 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
 				try {
 					const locationInput = req.body as unknown as LocationReturn;
 					const corrected = await correctLocation(locationInput);
+					console.log(corrected)
 					res.json(corrected);
 				} catch (err) {
 					console.error('[ERROR] /validate-location:', err);
