@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 
 import { LocationReturn } from './types';
+import { localOnlyMiddleware } from './middleware/localOnlyMiddleware';
 
 dotenv.config();
 
@@ -459,6 +460,7 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
 		// Create an Express app.
 		const app = express();
 		app.use(express.json());
+		app.use(localOnlyMiddleware);
 
 		// ---------------------------------------------
 		// Routes
@@ -468,13 +470,13 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
 		 * POST /api/location/correct
 		 * Accepts a LocationReturn-like JSON payload and returns the corrected location
 		 */
-		app.post('/api/location/correct', async (req: Request, res: Response) => {
+		app.post('/validate-location', async (req: Request, res: Response) => {
 			try {
 				const locationInput: LocationReturn = req.body;
 				const corrected = await correctLocation(locationInput);
 				res.json(corrected);
 			} catch (err) {
-				console.error('[ERROR] /api/location/correct:', err);
+				console.error('[ERROR] /alidate-location:', err);
 				res.status(500).json({ error: 'Internal server error' });
 			}
 		});
