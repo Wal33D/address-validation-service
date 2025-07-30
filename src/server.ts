@@ -1,6 +1,8 @@
 import express, { Request, Response } from 'express';
 import compression from 'compression';
 import axios, { AxiosInstance } from 'axios';
+import https from 'https';
+import http from 'http';
 import dotenv from 'dotenv';
 import logger from './utils/logger';
 import { LRUCache, generateGeocacheKey } from './utils/LRUCache';
@@ -56,14 +58,40 @@ export interface AddressCorrectionResponse {
 let cachedToken: string | null = null;
 let tokenExpiresAt: number | null = null;
 
-// Create axios instances with retry logic
+// Create HTTP/HTTPS agents with connection pooling
+const httpAgent = new http.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 1000,
+    maxSockets: 50,
+    maxFreeSockets: 10,
+    timeout: 60000,
+    scheduling: 'lifo' // Last-in-first-out scheduling
+});
+
+const httpsAgent = new https.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 1000,
+    maxSockets: 50,
+    maxFreeSockets: 10,
+    timeout: 60000,
+    scheduling: 'lifo',
+    rejectUnauthorized: true
+});
+
+// Create axios instances with retry logic and connection pooling
 const createAxiosInstance = (baseURL?: string, timeout: number = 10000): AxiosInstance => {
     const instance = axios.create({
         ...(baseURL && { baseURL }),
         timeout,
         headers: {
             'User-Agent': 'CandyComp-Location-Service/1.0'
-        }
+        },
+        httpAgent,
+        httpsAgent,
+        // Additional performance optimizations
+        maxRedirects: 5,
+        decompress: true,
+        validateStatus: (status) => status < 500 // Don't throw on 4xx errors
     });
 
     // Add retry interceptor
@@ -642,6 +670,10 @@ async function shutdown() {
     
     // Clean up cache
     geocodingCache.clear();
+    
+    // Clean up HTTP agents
+    httpAgent.destroy();
+    httpsAgent.destroy();
     
     logger.info('Shutdown complete');
     process.exit(0);
