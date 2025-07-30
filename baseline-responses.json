@@ -1,0 +1,71 @@
+{
+  "timestamp": "2025-07-30T10:33:25.182Z",
+  "baseUrl": "http://localhost:3715",
+  "tests": [
+    {
+      "name": "health-check",
+      "endpoint": "/health",
+      "method": "GET",
+      "error": "connect ECONNREFUSED ::1:3715",
+      "timestamp": "2025-07-30T10:33:25.200Z"
+    },
+    {
+      "name": "validate-location-complete",
+      "endpoint": "/validate-location",
+      "method": "POST",
+      "requestBody": {
+        "streetAddress": "1600 Pennsylvania Avenue",
+        "city": "Washington",
+        "state": "DC",
+        "zipCode": "20500",
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            -77.0365,
+            38.8977
+          ]
+        }
+      },
+      "error": "connect ECONNREFUSED ::1:3715",
+      "timestamp": "2025-07-30T10:33:25.201Z"
+    },
+    {
+      "name": "validate-location-minimal",
+      "endpoint": "/validate-location",
+      "method": "POST",
+      "requestBody": {
+        "streetAddress": "1 Apple Park Way",
+        "city": "Cupertino",
+        "state": "CA"
+      },
+      "error": "connect ECONNREFUSED ::1:3715",
+      "timestamp": "2025-07-30T10:33:25.202Z"
+    },
+    {
+      "name": "validate-location-with-geo-only",
+      "endpoint": "/validate-location",
+      "method": "POST",
+      "requestBody": {
+        "geo": {
+          "type": "Point",
+          "coordinates": [
+            -122.0322,
+            37.3229
+          ]
+        }
+      },
+      "error": "connect ECONNREFUSED ::1:3715",
+      "timestamp": "2025-07-30T10:33:25.203Z"
+    },
+    {
+      "name": "validate-location-missing-required",
+      "endpoint": "/validate-location",
+      "method": "POST",
+      "requestBody": {
+        "streetAddress": "123 Main St"
+      },
+      "error": "connect ECONNREFUSED ::1:3715",
+      "timestamp": "2025-07-30T10:33:25.204Z"
+    }
+  ]
+}
