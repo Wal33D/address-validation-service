@@ -20,3 +20,11 @@ afterAll(async () => {
     // Close any open handles
     await new Promise(resolve => setTimeout(resolve, 500));
 });
+
+// Add a dummy test to satisfy Jest requirement
+describe('Test Setup', () => {
+    it('should configure test environment', () => {
+        expect(process.env['NODE_ENV']).toBe('test');
+        expect(process.env['LOG_LEVEL']).toBe('error');
+    });
+});

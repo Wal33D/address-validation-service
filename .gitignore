@@ -1,4 +1,5 @@
 /node_modules
+/dist
 minify.js
 minified.txt
 .local.env

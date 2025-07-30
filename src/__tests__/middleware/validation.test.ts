@@ -5,14 +5,14 @@ import { ValidationError } from '../../utils/errors';
 describe('Validation Middleware', () => {
     let mockReq: Partial<Request>;
     let mockRes: Partial<Response>;
-    let mockNext: NextFunction;
+    let mockNext: jest.MockedFunction<NextFunction>;
 
     beforeEach(() => {
         mockReq = {
             body: {}
         };
         mockRes = {};
-        mockNext = jest.fn();
+        mockNext = jest.fn() as jest.MockedFunction<NextFunction>;
     });
 
     describe('validate middleware factory', () => {

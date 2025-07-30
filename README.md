@@ -116,63 +116,178 @@ curl -X POST http://localhost:3715/validate-location \
 
 ## 📚 API Documentation
 
+### Base URL
+```
+http://localhost:3715
+```
+
+### Authentication
+All endpoints require requests to originate from localhost (127.0.0.1 or ::1).
+
 ### Endpoints
 
-#### `POST /validate-location`
-
-Validates and enriches address data using USPS and Google Maps.
-
-**Request Body:**
-```typescript
-{
-  streetAddress: string;      // Required
-  city?: string;             // Required if no zipCode
-  state?: string;            // Recommended
-  zipCode?: string;          // Required if no city
-  geo?: {                    // Optional
-    type: "Point";
-    coordinates: [number, number]; // [lng, lat]
-  };
-  formattedAddress?: string; // Optional
-}
-```
-
-**Response:**
-```typescript
-{
-  streetAddress: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  formattedAddress: string;
-  unformattedAddress: string;
-  geo: {
-    type: "Point";
-    coordinates: [number, number];
-  };
-  county?: string;
-  streetName?: string;
-  status: boolean;
-  error?: string;
-}
-```
-
-**Status Codes:**
-- `200 OK`: Successful validation
-- `400 Bad Request`: Invalid input
-- `403 Forbidden`: Access denied (non-local request)
-- `500 Internal Server Error`: Server error
-
-#### `GET /health`
-
-Health check endpoint for monitoring.
+#### Health Check
+**`GET /health`** - Check the API health and status
 
 **Response:**
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "timestamp": "2025-01-30T12:00:00.000Z",
+  "uptime": 123.456,
+  "environment": "development",
+  "cache": {
+    "size": 42,
+    "capacity": 1000,
+    "utilization": 4.2
+  }
 }
 ```
+
+#### Validate Single Location
+**`POST /validate-location`** - Validates and corrects a single address
+
+**Request Body:**
+```json
+{
+  "streetAddress": "1600 Pennsylvania Avenue",  // Required
+  "city": "Washington",                        // Required if no zipCode
+  "state": "DC",                               // Optional (2-letter code)
+  "zipCode": "20500",                          // Required if no city
+  "geo": {                                     // Optional
+    "type": "Point",
+    "coordinates": [-77.0365, 38.8977]
+  },
+  "formattedAddress": "...",                   // Optional
+  "county": "...",                             // Optional
+  "latitude": 38.8977,                         // Optional (alternative to geo)
+  "longitude": -77.0365                        // Optional (alternative to geo)
+}
+```
+
+**Success Response:**
+```json
+{
+  "streetAddress": "1600 Pennsylvania Ave NW",
+  "city": "Washington",
+  "state": "DC",
+  "zipCode": "20500",
+  "formattedAddress": "1600 Pennsylvania Ave NW, Washington, DC 20500",
+  "unformattedAddress": "1600 Pennsylvania Avenue, Washington, DC, 20500",
+  "geo": {
+    "type": "Point",
+    "coordinates": [-77.0365, 38.8977]
+  },
+  "county": "District Of Columbia",
+  "streetName": "Pennsylvania Ave NW",
+  "status": true
+}
+```
+
+**Error Response:**
+```json
+{
+  "streetAddress": "123 Invalid St",
+  "city": "Unknown",
+  "formattedAddress": "",
+  "status": false,
+  "error": "USPS address validation failed"
+}
+```
+
+#### Batch Location Validation
+**`POST /validate-locations`** - Validate multiple locations (max 100)
+
+**Request Body:**
+```json
+{
+  "locations": [
+    {
+      "streetAddress": "1600 Pennsylvania Avenue",
+      "city": "Washington",
+      "state": "DC"
+    },
+    {
+      "streetAddress": "350 5th Ave",
+      "city": "New York",
+      "state": "NY",
+      "zipCode": "10118"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "index": 0,
+      "streetAddress": "1600 Pennsylvania Ave NW",
+      "city": "Washington",
+      "state": "DC",
+      "zipCode": "20500",
+      "formattedAddress": "1600 Pennsylvania Ave NW, Washington, DC 20500",
+      "geo": {
+        "type": "Point",
+        "coordinates": [-77.0365, 38.8977]
+      },
+      "status": true
+    },
+    {
+      "index": 1,
+      "streetAddress": "350 5th Ave",
+      "city": "New York",
+      "state": "NY",
+      "zipCode": "10118",
+      "formattedAddress": "350 5th Ave, New York, NY 10118",
+      "geo": {
+        "type": "Point",
+        "coordinates": [-73.9851, 40.7484]
+      },
+      "status": true
+    }
+  ]
+}
+```
+
+#### Cache Statistics
+**`GET /cache/stats`** - Get geocoding cache statistics
+
+**Response:**
+```json
+{
+  "geocoding": {
+    "size": 42,
+    "capacity": 1000,
+    "utilization": 4.2
+  },
+  "cleanedExpired": 3
+}
+```
+
+### Error Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Bad Request - Invalid input data |
+| 403 | Forbidden - Request not from localhost |
+| 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Internal Server Error |
+| 502 | Bad Gateway - External API error |
+| 504 | Gateway Timeout - External API timeout |
+
+### Rate Limiting
+- Default: 100 requests per minute
+- Configurable via environment variables
+- Local requests bypass rate limiting
+
+### Response Headers
+- `Cache-Control: public, max-age=86400` - 24-hour cache
+- `X-Cache-Status: hit|miss` - Indicates if result was from cache
+- Standard security headers via Helmet (in production)
 
 ## ⚙️ Configuration
 
