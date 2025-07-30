@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-07-30T10:33:25.182Z",
+  "timestamp": "2025-07-30T11:05:15.641Z",
   "baseUrl": "http://localhost:3715",
   "tests": [
     {
@@ -7,7 +7,7 @@
       "endpoint": "/health",
       "method": "GET",
       "error": "connect ECONNREFUSED ::1:3715",
-      "timestamp": "2025-07-30T10:33:25.200Z"
+      "timestamp": "2025-07-30T11:05:15.656Z"
     },
     {
       "name": "validate-location-complete",
@@ -27,7 +27,7 @@
         }
       },
       "error": "connect ECONNREFUSED ::1:3715",
-      "timestamp": "2025-07-30T10:33:25.201Z"
+      "timestamp": "2025-07-30T11:05:15.658Z"
     },
     {
       "name": "validate-location-minimal",
@@ -39,7 +39,7 @@
         "state": "CA"
       },
       "error": "connect ECONNREFUSED ::1:3715",
-      "timestamp": "2025-07-30T10:33:25.202Z"
+      "timestamp": "2025-07-30T11:05:15.659Z"
     },
     {
       "name": "validate-location-with-geo-only",
@@ -55,7 +55,7 @@
         }
       },
       "error": "connect ECONNREFUSED ::1:3715",
-      "timestamp": "2025-07-30T10:33:25.203Z"
+      "timestamp": "2025-07-30T11:05:15.659Z"
     },
     {
       "name": "validate-location-missing-required",
@@ -65,7 +65,7 @@
         "streetAddress": "123 Main St"
       },
       "error": "connect ECONNREFUSED ::1:3715",
-      "timestamp": "2025-07-30T10:33:25.204Z"
+      "timestamp": "2025-07-30T11:05:15.661Z"
     }
   ]
 }

@@ -6,6 +6,7 @@ import http from 'http';
 import dotenv from 'dotenv';
 import logger from './utils/logger';
 import { LRUCache, generateGeocacheKey } from './utils/LRUCache';
+import { uspsDeduplicator, googleMapsDeduplicator } from './utils/RequestDeduplicator';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { localOnlyMiddleware } from './middleware/localOnlyMiddleware';
 import { securityMiddleware } from './middleware/security';
@@ -137,32 +138,35 @@ async function getUSPSToken(): Promise<string | null> {
         return cachedToken;
     }
 
-    const body = new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: config.usps.consumerKey,
-        client_secret: config.usps.consumerSecret,
-        scope: 'addresses',
-    });
+    // Use deduplication for token requests
+    return uspsDeduplicator.execute('usps-token', async () => {
+        const body = new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: config.usps.consumerKey,
+            client_secret: config.usps.consumerSecret,
+            scope: 'addresses',
+        });
 
-    try {
-        const response = await uspsAxios.post(
-            config.usps.tokenUrl,
-            body.toString(),
-            {
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            }
-        );
-        
-        const data = response.data as { access_token: string; expires_in: number };
-        cachedToken = data.access_token;
-        tokenExpiresAt = Date.now() + data.expires_in * 1000;
-        
-        logger.info('USPS token refreshed successfully');
-        return cachedToken;
-    } catch (error: any) {
-        logger.error('Failed to get USPS token', { error: error.message });
-        return null;
-    }
+        try {
+            const response = await uspsAxios.post(
+                config.usps.tokenUrl,
+                body.toString(),
+                {
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                }
+            );
+            
+            const data = response.data as { access_token: string; expires_in: number };
+            cachedToken = data.access_token;
+            tokenExpiresAt = Date.now() + data.expires_in * 1000;
+            
+            logger.info('USPS token refreshed successfully');
+            return cachedToken;
+        } catch (error: any) {
+            logger.error('Failed to get USPS token', { error: error.message });
+            return null;
+        }
+    });
 }
 
 function buildFormattedAddress(addr: any): string {
@@ -232,11 +236,15 @@ export async function correctAddress({
     const url = `${config.usps.addressUrl}/address?${params.toString()}`;
 
     try {
-        const response = await uspsAxios.get(url, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        // Create a unique key for this address request
+        const addressKey = `usps-address:${streetAddress}:${city || ''}:${state || ''}:${zipCode || ''}`;
         
-        const data = response.data as { address?: any };
+        const data = await uspsDeduplicator.execute(addressKey, async () => {
+            const response = await uspsAxios.get(url, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return response.data as { address?: any };
+        });
 
         if (data?.address) {
             formattedAddress = buildFormattedAddress(data.address);
@@ -359,12 +367,17 @@ async function fetchGeoCoordinates({
     }
 
     try {
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-            formattedAddress,
-        )}&key=${config.googleMaps.apiKey}`;
+        // Use deduplication for Google Maps requests
+        const geocodeKey = `geocode:${formattedAddress}`;
         
-        const response = await googleAxios.get(url);
-        const result = parseFirstGmapsResult(response.data);
+        const result = await googleMapsDeduplicator.execute(geocodeKey, async () => {
+            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+                formattedAddress,
+            )}&key=${config.googleMaps.apiKey}`;
+            
+            const response = await googleAxios.get(url);
+            return parseFirstGmapsResult(response.data);
+        });
         
         if (result) {
             // Cache the result
@@ -390,9 +403,14 @@ async function fetchAddressFromCoordinates(geo: Geo) {
             return cached;
         }
         
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${config.googleMaps.apiKey}`;
-        const response = await googleAxios.get(url);
-        const result = parseFirstGmapsResult(response.data);
+        // Use deduplication for reverse geocoding
+        const reverseGeocodeKey = `reverse-geocode:${lat},${lng}`;
+        
+        const result = await googleMapsDeduplicator.execute(reverseGeocodeKey, async () => {
+            const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${config.googleMaps.apiKey}`;
+            const response = await googleAxios.get(url);
+            return parseFirstGmapsResult(response.data);
+        });
         
         if (result) {
             // Cache the result
@@ -563,7 +581,11 @@ app.get('/health', (_req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: config.nodeEnv,
-        cache: geocodingCache.getStats()
+        cache: geocodingCache.getStats(),
+        deduplication: {
+            usps: uspsDeduplicator.getStats(),
+            googleMaps: googleMapsDeduplicator.getStats()
+        }
     };
     
     res.status(200).json(health);
@@ -670,6 +692,10 @@ async function shutdown() {
     
     // Clean up cache
     geocodingCache.clear();
+    
+    // Clean up deduplicators
+    uspsDeduplicator.clear();
+    googleMapsDeduplicator.clear();
     
     // Clean up HTTP agents
     httpAgent.destroy();
