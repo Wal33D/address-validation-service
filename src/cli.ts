@@ -9,8 +9,8 @@ const program = new Command();
 
 // CLI configuration
 program
-    .name('location-correction-cli')
-    .description('CLI tool for testing the CandyComp Location Correction Service')
+    .name('address-validation-cli')
+    .description('CLI tool for testing the Address Validation Service')
     .version('1.0.0');
 
 // Helper function to format output

@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Location Correction Service API
+  title: Address Validation Service API
   description: |
     A robust address validation and geocoding service that leverages USPS and Google Maps APIs
     to provide accurate address correction and geocoding capabilities.

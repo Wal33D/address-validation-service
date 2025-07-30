@@ -1,4 +1,4 @@
-# CandyComp Location Correction Service
+# Address Validation Service
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
@@ -43,8 +43,8 @@ A high-performance address validation and geocoding service that combines USPS a
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/Wal33D/candycomp-location-correction.git
-cd candycomp-location-correction
+git clone https://github.com/Wal33D/address-validation-service.git
+cd address-validation-service
 ```
 
 2. **Install dependencies:**

@@ -1,5 +1,5 @@
 {
-	"name": "candycomp-location-correction",
+	"name": "address-validation-service",
 	"version": "0.1.5",
 	"description": "High-performance address validation and geocoding service combining USPS and Google Maps",
 	"main": "dist/server.js",
@@ -7,7 +7,7 @@
 	"license": "ISC",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Wal33D/candycomp-location-correction.git"
+		"url": "git+https://github.com/Wal33D/address-validation-service.git"
 	},
 	"keywords": [
 		"location",
