@@ -5,8 +5,8 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.test' });
 
 // Set test environment
-process.env.NODE_ENV = 'test';
-process.env.LOG_LEVEL = 'error'; // Reduce log noise during tests
+process.env['NODE_ENV'] = 'test';
+process.env['LOG_LEVEL'] = 'error'; // Reduce log noise during tests
 
 // Mock external services
 jest.mock('axios');

@@ -22,7 +22,7 @@ const logFormat = printf(({ level, message, timestamp, stack, ...metadata }) => 
 
 // Create the logger
 const logger = winston.createLogger({
-    level: process.env.LOG_LEVEL || 'info',
+    level: process.env['LOG_LEVEL'] || 'info',
     format: combine(
         errors({ stack: true }),
         timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -42,7 +42,7 @@ const logger = winston.createLogger({
 });
 
 // Add file transport in production
-if (process.env.NODE_ENV === 'production') {
+if (process.env['NODE_ENV'] === 'production') {
     logger.add(
         new winston.transports.File({
             filename: path.join('logs', 'error.log'),

@@ -60,34 +60,34 @@ function validateConfig(): Config {
     }
     
     return {
-        port: parseInt(process.env.PORT || '3715', 10),
-        nodeEnv: process.env.NODE_ENV || 'development',
+        port: parseInt(process.env['PORT'] || '3715', 10),
+        nodeEnv: process.env['NODE_ENV'] || 'development',
         
         usps: {
-            tokenUrl: process.env.USPS_TOKEN_URL!,
-            addressUrl: process.env.USPS_ADDRESS_URL!,
-            consumerKey: process.env.USPS_CONSUMER_KEY!,
-            consumerSecret: process.env.USPS_CONSUMER_SECRET!
+            tokenUrl: process.env['USPS_TOKEN_URL']!,
+            addressUrl: process.env['USPS_ADDRESS_URL']!,
+            consumerKey: process.env['USPS_CONSUMER_KEY']!,
+            consumerSecret: process.env['USPS_CONSUMER_SECRET']!
         },
         
         googleMaps: {
-            apiKey: process.env.GMAPS_API_KEY!
+            apiKey: process.env['GMAPS_API_KEY']!
         },
         
         security: {
-            enableRateLimiting: process.env.ENABLE_RATE_LIMITING !== 'false',
-            rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
-            rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
-            corsAllowedOrigins: process.env.CORS_ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000']
+            enableRateLimiting: process.env['ENABLE_RATE_LIMITING'] !== 'false',
+            rateLimitWindowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000', 10),
+            rateLimitMaxRequests: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100', 10),
+            corsAllowedOrigins: process.env['CORS_ALLOWED_ORIGINS']?.split(',') || ['http://localhost:3000']
         },
         
         cache: {
-            geocodingCacheSize: parseInt(process.env.GEOCODING_CACHE_SIZE || '1000', 10),
-            geocodingCacheTTL: parseInt(process.env.GEOCODING_CACHE_TTL || '3600', 10)
+            geocodingCacheSize: parseInt(process.env['GEOCODING_CACHE_SIZE'] || '1000', 10),
+            geocodingCacheTTL: parseInt(process.env['GEOCODING_CACHE_TTL'] || '3600', 10)
         },
         
         logging: {
-            level: process.env.LOG_LEVEL || 'info'
+            level: process.env['LOG_LEVEL'] || 'info'
         }
     };
 }

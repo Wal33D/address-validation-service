@@ -39,7 +39,7 @@ export function errorHandler(
     res.status(statusCode).json({
         error: {
             message: isOperational ? message : 'Something went wrong',
-            ...(process.env.NODE_ENV === 'development' && {
+            ...(process.env['NODE_ENV'] === 'development' && {
                 stack: err.stack,
                 details: err
             })
@@ -48,7 +48,7 @@ export function errorHandler(
     });
     
     // For non-operational errors in production, we might want to shut down
-    if (!isOperational && process.env.NODE_ENV === 'production') {
+    if (!isOperational && process.env['NODE_ENV'] === 'production') {
         logger.error('Non-operational error occurred, consider shutting down gracefully');
     }
 }

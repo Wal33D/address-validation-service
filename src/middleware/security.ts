@@ -6,7 +6,7 @@ import logger from '../utils/logger';
 
 // CORS configuration
 export const corsOptions: cors.CorsOptions = {
-    origin: process.env.CORS_ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+    origin: process.env['CORS_ALLOWED_ORIGINS']?.split(',') || ['http://localhost:3000'],
     credentials: true,
     optionsSuccessStatus: 200
 };
@@ -50,9 +50,9 @@ export const securityMiddleware = () => {
     middlewares.push(cors(corsOptions));
     
     // Add rate limiting
-    if (process.env.ENABLE_RATE_LIMITING !== 'false') {
-        const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000');
-        const maxRequests = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100');
+    if (process.env['ENABLE_RATE_LIMITING'] !== 'false') {
+        const windowMs = parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000');
+        const maxRequests = parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100');
         middlewares.push(createRateLimiter(windowMs, maxRequests));
     }
     
