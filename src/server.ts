@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import logger from './utils/logger';
 import { LRUCache, generateGeocacheKey } from './utils/LRUCache';
 import { uspsDeduplicator, googleMapsDeduplicator } from './utils/RequestDeduplicator';
+import { uspsCircuitBreaker, googleMapsCircuitBreaker } from './utils/CircuitBreaker';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { localOnlyMiddleware } from './middleware/localOnlyMiddleware';
 import { securityMiddleware } from './middleware/security';
@@ -138,34 +139,36 @@ async function getUSPSToken(): Promise<string | null> {
         return cachedToken;
     }
 
-    // Use deduplication for token requests
+    // Use deduplication and circuit breaker for token requests
     return uspsDeduplicator.execute('usps-token', async () => {
-        const body = new URLSearchParams({
-            grant_type: 'client_credentials',
-            client_id: config.usps.consumerKey,
-            client_secret: config.usps.consumerSecret,
-            scope: 'addresses',
-        });
+        return uspsCircuitBreaker.execute(async () => {
+            const body = new URLSearchParams({
+                grant_type: 'client_credentials',
+                client_id: config.usps.consumerKey,
+                client_secret: config.usps.consumerSecret,
+                scope: 'addresses',
+            });
 
-        try {
-            const response = await uspsAxios.post(
-                config.usps.tokenUrl,
-                body.toString(),
-                {
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                }
-            );
-            
-            const data = response.data as { access_token: string; expires_in: number };
-            cachedToken = data.access_token;
-            tokenExpiresAt = Date.now() + data.expires_in * 1000;
-            
-            logger.info('USPS token refreshed successfully');
-            return cachedToken;
-        } catch (error: any) {
-            logger.error('Failed to get USPS token', { error: error.message });
-            return null;
-        }
+            try {
+                const response = await uspsAxios.post(
+                    config.usps.tokenUrl,
+                    body.toString(),
+                    {
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                    }
+                );
+                
+                const data = response.data as { access_token: string; expires_in: number };
+                cachedToken = data.access_token;
+                tokenExpiresAt = Date.now() + data.expires_in * 1000;
+                
+                logger.info('USPS token refreshed successfully');
+                return cachedToken;
+            } catch (error: any) {
+                logger.error('Failed to get USPS token', { error: error.message });
+                throw error; // Let circuit breaker handle the failure
+            }
+        });
     });
 }
 
@@ -240,10 +243,12 @@ export async function correctAddress({
         const addressKey = `usps-address:${streetAddress}:${city || ''}:${state || ''}:${zipCode || ''}`;
         
         const data = await uspsDeduplicator.execute(addressKey, async () => {
-            const response = await uspsAxios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
+            return uspsCircuitBreaker.execute(async () => {
+                const response = await uspsAxios.get(url, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                return response.data as { address?: any };
             });
-            return response.data as { address?: any };
         });
 
         if (data?.address) {
@@ -371,12 +376,14 @@ async function fetchGeoCoordinates({
         const geocodeKey = `geocode:${formattedAddress}`;
         
         const result = await googleMapsDeduplicator.execute(geocodeKey, async () => {
-            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-                formattedAddress,
-            )}&key=${config.googleMaps.apiKey}`;
-            
-            const response = await googleAxios.get(url);
-            return parseFirstGmapsResult(response.data);
+            return googleMapsCircuitBreaker.execute(async () => {
+                const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+                    formattedAddress,
+                )}&key=${config.googleMaps.apiKey}`;
+                
+                const response = await googleAxios.get(url);
+                return parseFirstGmapsResult(response.data);
+            });
         });
         
         if (result) {
@@ -407,9 +414,11 @@ async function fetchAddressFromCoordinates(geo: Geo) {
         const reverseGeocodeKey = `reverse-geocode:${lat},${lng}`;
         
         const result = await googleMapsDeduplicator.execute(reverseGeocodeKey, async () => {
-            const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${config.googleMaps.apiKey}`;
-            const response = await googleAxios.get(url);
-            return parseFirstGmapsResult(response.data);
+            return googleMapsCircuitBreaker.execute(async () => {
+                const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${config.googleMaps.apiKey}`;
+                const response = await googleAxios.get(url);
+                return parseFirstGmapsResult(response.data);
+            });
         });
         
         if (result) {
@@ -585,6 +594,10 @@ app.get('/health', (_req: Request, res: Response) => {
         deduplication: {
             usps: uspsDeduplicator.getStats(),
             googleMaps: googleMapsDeduplicator.getStats()
+        },
+        circuitBreakers: {
+            usps: uspsCircuitBreaker.getStats(),
+            googleMaps: googleMapsCircuitBreaker.getStats()
         }
     };
     
