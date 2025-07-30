@@ -1,6 +1,6 @@
 {
 	"name": "candycomp-location-correction",
-	"version": "1.0.21",
+	"version": "0.1.5",
 	"description": "High-performance address validation and geocoding service combining USPS and Google Maps",
 	"main": "dist/server.js",
 	"author": "Waleed Judah <waleed@glitchgaming.us>",
