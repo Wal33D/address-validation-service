@@ -70,6 +70,7 @@
 		"winston": "^3.17.0"
 	},
 	"devDependencies": {
+		"@types/axios-mock-adapter": "^1.10.4",
 		"@types/compression": "^1.8.1",
 		"@types/cors": "^2.8.19",
 		"@types/express": "^5.0.1",
@@ -78,6 +79,7 @@
 		"@types/supertest": "^6.0.3",
 		"@typescript-eslint/eslint-plugin": "^8.38.0",
 		"@typescript-eslint/parser": "^8.38.0",
+		"axios-mock-adapter": "^2.1.0",
 		"eslint": "^9.32.0",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-prettier": "^5.5.3",
