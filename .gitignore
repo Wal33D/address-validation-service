@@ -4,3 +4,4 @@ minified.txt
 .local.env
 .production.env
 .env
+CLAUDE.md
