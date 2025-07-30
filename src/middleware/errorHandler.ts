@@ -9,6 +9,11 @@ export function errorHandler(
     res: Response,
     _next: NextFunction
 ): void {
+    // If headers have already been sent, we can't send an error response
+    if (res.headersSent) {
+        return;
+    }
+    
     // Log the error
     logger.error({
         message: err.message,

@@ -8,6 +8,7 @@ import logger from './utils/logger';
 import { LRUCache, generateGeocacheKey } from './utils/LRUCache';
 import { uspsDeduplicator, googleMapsDeduplicator } from './utils/RequestDeduplicator';
 import { uspsCircuitBreaker, googleMapsCircuitBreaker } from './utils/CircuitBreaker';
+import { addressPreprocessor } from './utils/AddressPreprocessor';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { localOnlyMiddleware } from './middleware/localOnlyMiddleware';
 import { securityMiddleware } from './middleware/security';
@@ -195,6 +196,20 @@ export async function correctAddress({
         .filter(Boolean)
         .join(', ');
 
+    // Preprocess the address
+    const preprocessed = addressPreprocessor.preprocessAddress({
+        ...(streetAddress && { streetAddress }),
+        ...(city && { city }),
+        ...(state && { state }),
+        ...(zipCode && { zipCode })
+    });
+    
+    // Update variables with preprocessed values
+    streetAddress = preprocessed.streetAddress;
+    city = preprocessed.city;
+    state = preprocessed.state;
+    zipCode = preprocessed.zipCode;
+
     if (!streetAddress || !(city || zipCode)) {
         errorMsg = 'Missing required fields for USPS address correction.';
         return {
@@ -204,7 +219,7 @@ export async function correctAddress({
                 state,
                 zipCode,
                 formattedAddress: '',
-                unformattedAddress: unformatted,
+                unformattedAddress: unformatted
             }) as AddressResult,
             status: false,
             error: errorMsg,
@@ -221,7 +236,7 @@ export async function correctAddress({
                 state,
                 zipCode,
                 formattedAddress: '',
-                unformattedAddress: unformatted,
+                unformattedAddress: unformatted
             }) as AddressResult,
             status: false,
             error: errorMsg,
@@ -265,9 +280,68 @@ export async function correctAddress({
             zipCode = data.address.ZIPCode;
             statusFlag = true;
         }
-    } catch (err) {
-        errorMsg = `Error fetching USPS Address API: ${err instanceof Error ? err.message : String(err)}`;
-        logger.warn(streetAddress, city, state, zipCode, url, errorMsg);
+    } catch (err: any) {
+        // Improved error logging
+        logger.warn('USPS API error', {
+            input: {
+                streetAddress,
+                city,
+                state,
+                zipCode
+            },
+            url,
+            error: err.message || String(err),
+            status: err.response?.status,
+            timestamp: new Date().toISOString()
+        });
+
+        // Implement ZIP-only fallback for 400 errors when we have city and ZIP
+        if (addressPreprocessor.shouldRetryWithoutCity(err, !!city, !!zipCode)) {
+            logger.info('Retrying USPS request without city parameter');
+            
+            try {
+                const zipOnlyParams = new URLSearchParams();
+                zipOnlyParams.append('streetAddress', params.get('streetAddress') || '');
+                if (state) zipOnlyParams.append('state', state);
+                zipOnlyParams.append('ZIPCode', zipCode!);
+                
+                const zipOnlyUrl = `${config.usps.addressUrl}/address?${zipOnlyParams.toString()}`;
+                const zipOnlyKey = `usps-address:${streetAddress}::${state || ''}:${zipCode}`;
+                
+                const retryData = await uspsDeduplicator.execute(zipOnlyKey, async () => {
+                    return uspsCircuitBreaker.execute(async () => {
+                        const response = await uspsAxios.get(zipOnlyUrl, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        return response.data as { address?: any };
+                    });
+                });
+
+                if (retryData?.address) {
+                    formattedAddress = buildFormattedAddress(retryData.address);
+                    streetAddress = retryData.address.streetAddress
+                        ? toTitleCase(retryData.address.streetAddress)
+                        : toTitleCase(streetAddress);
+                    city = retryData.address.city
+                        ? toTitleCase(retryData.address.city)
+                        : city
+                            ? toTitleCase(city)
+                            : undefined;
+                    state = retryData.address.state;
+                    zipCode = retryData.address.ZIPCode;
+                    statusFlag = true;
+                    errorMsg = undefined; // Clear error on successful retry
+                }
+            } catch (retryErr: any) {
+                errorMsg = `Error fetching USPS Address API (with retry): ${retryErr.message || String(retryErr)}`;
+                logger.error('USPS ZIP-only retry failed', {
+                    error: retryErr.message,
+                    status: retryErr.response?.status
+                });
+            }
+        } else {
+            errorMsg = `Error fetching USPS Address API: ${err.message || String(err)}`;
+        }
     }
 
     const result: AddressCorrectionResponse = {
@@ -277,7 +351,7 @@ export async function correctAddress({
             state,
             zipCode,
             formattedAddress,
-            unformattedAddress: unformatted,
+            unformattedAddress: unformatted
         }) as AddressResult,
         status: statusFlag,
     };
@@ -309,8 +383,13 @@ function parseAddressComponents(components: any[]): any {
             city = c.long_name;
         if (!city && c.types.includes('sublocality')) city = c.long_name;
 
-        if (c.types.includes('administrative_area_level_2'))
+        if (c.types.includes('administrative_area_level_2')) {
             county = c.long_name.replace(/\s+County$/i, '');
+            logger.debug('Found administrative_area_level_2', { 
+                original: c.long_name, 
+                cleaned: county 
+            });
+        }
 
         if (c.types.includes('administrative_area_level_1')) state = c.short_name;
         if (c.types.includes('postal_code')) zipCode = c.long_name;
@@ -344,8 +423,15 @@ function parseFirstGmapsResult(data: any) {
         streetName,
         locality,
     } = parseAddressComponents(best.address_components);
+    
+    // Debug logging for county
+    if (county) {
+        logger.info('County found in Google Maps response', { county });
+    } else {
+        logger.info('No county found in Google Maps response');
+    }
 
-    return {
+    const result = {
         geo: { type: 'Point' as const, coordinates: [lng, lat] as [number, number] },
         formattedAddress,
         city,
@@ -356,6 +442,9 @@ function parseFirstGmapsResult(data: any) {
         streetName,
         locality,
     };
+    
+    logger.info('parseFirstGmapsResult returning', { county, city, state });
+    return result;
 }
 
 async function fetchGeoCoordinates({
@@ -468,6 +557,7 @@ export async function ensureValidGeoCoordinates({
                             geo: currentGeo,
                             formattedAddress: rev.formattedAddress,
                             city: rev.city,
+                            county: rev.county,
                             state: rev.state,
                             zipCode: rev.zipCode,
                             streetAddress: rev.streetAddress,
@@ -492,6 +582,7 @@ export async function ensureValidGeoCoordinates({
                         geo: forwardData.geo,
                         formattedAddress: forwardData.formattedAddress,
                         city: forwardData.city,
+                        county: forwardData.county,
                         state: forwardData.state,
                         zipCode: forwardData.zipCode,
                         streetAddress: forwardData.streetAddress,
@@ -569,7 +660,14 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
     if (geoResult.location.streetAddress) {
         updatedLocation.streetAddress = geoResult.location.streetAddress;
     }
+    if (geoResult.location.county) {
+        updatedLocation.county = geoResult.location.county;
+        logger.info('County added to updatedLocation', { county: updatedLocation.county });
+    } else {
+        logger.info('No county in geoResult.location', { geoResult: geoResult.location });
+    }
     delete updatedLocation.locality;
+    // Keep the original unformattedAddress to show what was passed in
     const error = uspsResult.error || geoResult.error;
     const status = uspsResult.status && geoResult.status;
 

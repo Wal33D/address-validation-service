@@ -116,6 +116,9 @@ curl -X POST http://localhost:3715/validate-location \
 
 ## 📚 API Documentation
 
+### Interactive API Documentation
+Open `api-docs.html` in your browser for interactive API documentation powered by Swagger UI. You can also view the raw OpenAPI specification in `openapi.yaml`.
+
 ### Base URL
 ```
 http://localhost:3715

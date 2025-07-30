@@ -1,0 +1,441 @@
+openapi: 3.0.3
+info:
+  title: Location Correction Service API
+  description: |
+    A robust address validation and geocoding service that leverages USPS and Google Maps APIs
+    to provide accurate address correction and geocoding capabilities.
+    
+    ## Features
+    - Address validation and standardization via USPS
+    - Geocoding via Google Maps
+    - Request deduplication and caching
+    - Circuit breaker pattern for resilience
+    - Batch processing support
+  version: 1.0.21
+  contact:
+    name: Waleed Judah
+    email: waleed@glitchgaming.us
+servers:
+  - url: http://localhost:3715
+    description: Development server
+  - url: https://api.example.com
+    description: Production server
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Returns the health status of the service including cache and circuit breaker statistics
+      operationId: getHealth
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ok"
+                timestamp: "2025-07-30T19:21:18.032Z"
+                uptime: 29755.380885916
+                environment: "production"
+                cache:
+                  size: 42
+                  capacity: 1000
+                  utilization: 4.2
+                deduplication:
+                  usps:
+                    hits: 10
+                    misses: 5
+                    active: 2
+                  googleMaps:
+                    hits: 8
+                    misses: 3
+                    active: 1
+                circuitBreakers:
+                  usps:
+                    state: "CLOSED"
+                    failures: 0
+                    successes: 150
+                    totalRequests: 150
+                  googleMaps:
+                    state: "CLOSED"
+                    failures: 0
+                    successes: 120
+                    totalRequests: 120
+
+  /cache/stats:
+    get:
+      summary: Cache Statistics
+      description: Returns detailed cache statistics and cleans expired entries
+      operationId: getCacheStats
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Cache statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  geocoding:
+                    $ref: '#/components/schemas/CacheStats'
+                  cleanedExpired:
+                    type: integer
+                    description: Number of expired entries cleaned
+
+  /validate-location:
+    post:
+      summary: Validate Single Location
+      description: |
+        Validates and geocodes a single address using USPS and Google Maps APIs.
+        
+        The service will:
+        1. Preprocess the address for USPS compatibility
+        2. Validate via USPS API
+        3. Geocode via Google Maps
+        4. Return standardized address with coordinates
+      operationId: validateLocation
+      tags:
+        - Address Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationRequest'
+            examples:
+              complete:
+                summary: Complete address
+                value:
+                  streetAddress: "1600 Pennsylvania Ave NW"
+                  city: "Washington"
+                  state: "DC"
+                  zipCode: "20500"
+              withTypo:
+                summary: Address with city typo
+                value:
+                  streetAddress: "2029 Ridge Street"
+                  city: "McBride"
+                  state: "MI"
+                  zipCode: "48852"
+              withAbbreviation:
+                summary: Address needing preprocessing
+                value:
+                  streetAddress: "6470 S Stony Road"
+                  city: "Monroe"
+                  state: "MI"
+                  zipCode: "48162"
+      responses:
+        '200':
+          description: Location validated successfully
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Cache control header
+              example: "public, max-age=86400"
+            X-Cache-Status:
+              schema:
+                type: string
+              description: Cache hit/miss status
+              example: "miss"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationResponse'
+              examples:
+                success:
+                  value:
+                    streetAddress: "1600 Pennsylvania Avenue Northwest"
+                    city: "Washington"
+                    state: "DC"
+                    zipCode: "20500"
+                    formattedAddress: "1600 Pennsylvania Ave NW, Washington, DC 20500"
+                    unformattedAddress: "1600 Pennsylvania Ave NW, Washington, DC, 20500"
+                    geo:
+                      type: "Point"
+                      coordinates: [-77.0365461, 38.89771400000001]
+                    status: true
+                withError:
+                  value:
+                    streetAddress: "123 Invalid Street"
+                    city: "Unknown"
+                    state: "XX"
+                    formattedAddress: ""
+                    unformattedAddress: "123 Invalid Street, Unknown, XX"
+                    status: false
+                    error: "Error fetching USPS Address API: Invalid address"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /validate-locations:
+    post:
+      summary: Validate Multiple Locations
+      description: |
+        Validates and geocodes multiple addresses in a single request.
+        Maximum 100 locations per request.
+        Each location is processed independently.
+      operationId: validateLocations
+      tags:
+        - Address Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - locations
+              properties:
+                locations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/LocationRequest'
+                  minItems: 1
+                  maxItems: 100
+            example:
+              locations:
+                - streetAddress: "350 5th Ave"
+                  city: "New York"
+                  state: "NY"
+                  zipCode: "10118"
+                - streetAddress: "1 Microsoft Way"
+                  city: "Redmond"
+                  state: "WA"
+                  zipCode: "98052"
+      responses:
+        '200':
+          description: Batch validation results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    LocationRequest:
+      type: object
+      required:
+        - streetAddress
+      properties:
+        streetAddress:
+          type: string
+          description: Street address to validate
+          example: "1600 Pennsylvania Ave NW"
+        city:
+          type: string
+          description: City name (optional if ZIP provided)
+          example: "Washington"
+        state:
+          type: string
+          description: State abbreviation
+          example: "DC"
+          pattern: '^[A-Z]{2}$'
+        zipCode:
+          type: string
+          description: ZIP code (5 or 9 digits)
+          example: "20500"
+          pattern: '^\d{5}(-\d{4})?$'
+        geo:
+          $ref: '#/components/schemas/GeoPoint'
+        formattedAddress:
+          type: string
+          description: Pre-formatted address for geocoding
+
+    LocationResponse:
+      type: object
+      properties:
+        streetAddress:
+          type: string
+          description: Standardized street address
+        city:
+          type: string
+          description: Standardized city name
+        state:
+          type: string
+          description: State abbreviation
+        zipCode:
+          type: string
+          description: ZIP code
+        county:
+          type: string
+          description: County name (when available)
+        formattedAddress:
+          type: string
+          description: Complete formatted address
+        unformattedAddress:
+          type: string
+          description: Original input address as provided
+        geo:
+          $ref: '#/components/schemas/GeoPoint'
+        status:
+          type: boolean
+          description: Whether validation was successful
+        error:
+          type: string
+          description: Error message if validation failed
+
+    GeoPoint:
+      type: object
+      required:
+        - type
+        - coordinates
+      properties:
+        type:
+          type: string
+          enum: ["Point"]
+          example: "Point"
+        coordinates:
+          type: array
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+          description: "[longitude, latitude]"
+          example: [-77.0365461, 38.89771400000001]
+
+    BatchResponse:
+      type: object
+      required:
+        - count
+        - results
+      properties:
+        count:
+          type: integer
+          description: Number of locations processed
+        results:
+          type: array
+          items:
+            allOf:
+              - type: object
+                properties:
+                  index:
+                    type: integer
+                    description: Original array index
+              - $ref: '#/components/schemas/LocationResponse'
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - uptime
+        - environment
+      properties:
+        status:
+          type: string
+          enum: ["ok", "degraded", "down"]
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+          description: Server uptime in seconds
+        environment:
+          type: string
+          enum: ["development", "production"]
+        cache:
+          $ref: '#/components/schemas/CacheStats'
+        deduplication:
+          type: object
+          properties:
+            usps:
+              $ref: '#/components/schemas/DeduplicationStats'
+            googleMaps:
+              $ref: '#/components/schemas/DeduplicationStats'
+        circuitBreakers:
+          type: object
+          properties:
+            usps:
+              $ref: '#/components/schemas/CircuitBreakerStats'
+            googleMaps:
+              $ref: '#/components/schemas/CircuitBreakerStats'
+
+    CacheStats:
+      type: object
+      required:
+        - size
+        - capacity
+        - utilization
+      properties:
+        size:
+          type: integer
+          description: Current number of cached entries
+        capacity:
+          type: integer
+          description: Maximum cache capacity
+        utilization:
+          type: number
+          description: Cache utilization percentage
+
+    DeduplicationStats:
+      type: object
+      properties:
+        hits:
+          type: integer
+          description: Number of deduplicated requests
+        misses:
+          type: integer
+          description: Number of unique requests
+        active:
+          type: integer
+          description: Currently active requests
+
+    CircuitBreakerStats:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: ["CLOSED", "OPEN", "HALF_OPEN"]
+        failures:
+          type: integer
+        successes:
+          type: integer
+        totalRequests:
+          type: integer
+        lastFailureTime:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - status
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            stack:
+              type: string
+              description: Only in development mode
+        status:
+          type: boolean
+          example: false
+
+tags:
+  - name: Address Validation
+    description: Endpoints for validating and geocoding addresses
+  - name: Monitoring
+    description: Health check and monitoring endpoints

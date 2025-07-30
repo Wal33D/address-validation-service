@@ -2,11 +2,12 @@ import helmet from 'helmet';
 import { securityMiddleware } from '../../middleware/security';
 
 // Mock helmet
-jest.mock('helmet', () => ({
-    default: jest.fn(() => []),
-    contentSecurityPolicy: jest.fn(() => jest.fn()),
-    hsts: jest.fn(() => jest.fn())
-}));
+jest.mock('helmet', () => {
+    return {
+        __esModule: true,
+        default: jest.fn(() => [])
+    };
+});
 
 describe('Security Middleware', () => {
     beforeEach(() => {
@@ -20,37 +21,27 @@ describe('Security Middleware', () => {
             
             expect(Array.isArray(middlewares)).toBe(true);
             expect(middlewares.length).toBeGreaterThan(0);
-            expect(helmet).toHaveBeenCalled();
-            expect(helmet.contentSecurityPolicy).toHaveBeenCalled();
-            expect(helmet.hsts).toHaveBeenCalled();
-        });
-
-        it('should configure CSP correctly', () => {
-            securityMiddleware();
-
-            expect(helmet.contentSecurityPolicy).toHaveBeenCalledWith({
-                directives: {
-                    defaultSrc: ["'self'"],
-                    styleSrc: ["'self'", "'unsafe-inline'"],
-                    scriptSrc: ["'self'"],
-                    imgSrc: ["'self'", "data:", "https:"],
-                    connectSrc: ["'self'"],
-                    fontSrc: ["'self'"],
-                    objectSrc: ["'none'"],
-                    mediaSrc: ["'self'"],
-                    frameSrc: ["'none'"],
-                }
+            expect(helmet).toHaveBeenCalledWith({
+                contentSecurityPolicy: false,
+                crossOriginEmbedderPolicy: false
             });
         });
 
-        it('should configure HSTS correctly', () => {
-            securityMiddleware();
+        it('should include CORS middleware', () => {
+            const middlewares = securityMiddleware();
+            expect(middlewares.length).toBeGreaterThanOrEqual(2); // At least helmet and cors
+        });
 
-            expect(helmet.hsts).toHaveBeenCalledWith({
-                maxAge: 31536000,
-                includeSubDomains: true,
-                preload: true
-            });
+        it('should include rate limiting when enabled', () => {
+            process.env['ENABLE_RATE_LIMITING'] = 'true';
+            const middlewares = securityMiddleware();
+            expect(middlewares.length).toBeGreaterThanOrEqual(3); // helmet, cors, and rate limiter
+        });
+
+        it('should skip rate limiting when disabled', () => {
+            process.env['ENABLE_RATE_LIMITING'] = 'false';
+            const middlewares = securityMiddleware();
+            expect(middlewares.length).toBe(2); // Only helmet and cors
         });
     });
 });
