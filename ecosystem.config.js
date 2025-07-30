@@ -3,7 +3,7 @@
 module.exports = {
 	apps: [
 		{
-			name: 'candycomp-location-correction',
+			name: 'address-validation-service',
 			script: 'dist/server.js',
 			exec_mode: 'cluster',
 			watch: false,
