@@ -576,7 +576,10 @@ async function fetchAddressFromCoordinates(geo: Geo) {
         
         return result;
     } catch (err) {
-        logger.error('Error reverse geocoding:', err);
+        logger.error('Error reverse geocoding:', { 
+            error: err instanceof Error ? err.message : String(err),
+            coordinates: geo
+        });
         return null;
     }
 }

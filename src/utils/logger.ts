@@ -3,13 +3,47 @@ import path from 'path';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
+// Safe JSON stringify that handles circular references
+function safeStringify(obj: any): string {
+    const seen = new WeakSet();
+    return JSON.stringify(obj, (key, value) => {
+        // Handle circular references
+        if (typeof value === 'object' && value !== null) {
+            if (seen.has(value)) {
+                return '[Circular Reference]';
+            }
+            seen.add(value);
+        }
+        
+        // Handle common problematic objects
+        if (value instanceof Error) {
+            return {
+                name: value.name,
+                message: value.message,
+                stack: value.stack
+            };
+        }
+        
+        // Skip certain keys that often cause issues
+        if (key === 'socket' || key === 'connection' || key === 'agent' || key === 'request' || key === 'response') {
+            return '[Omitted]';
+        }
+        
+        return value;
+    });
+}
+
 // Custom log format
 const logFormat = printf(({ level, message, timestamp, stack, ...metadata }) => {
     let log = `${timestamp} [${level}]: ${message}`;
     
     // Add metadata if present
     if (Object.keys(metadata).length > 0) {
-        log += ` ${JSON.stringify(metadata)}`;
+        try {
+            log += ` ${safeStringify(metadata)}`;
+        } catch (error) {
+            log += ` [Error stringifying metadata: ${error instanceof Error ? error.message : 'Unknown error'}]`;
+        }
     }
     
     // Add stack trace if present (for errors)
