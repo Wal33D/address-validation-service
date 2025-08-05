@@ -18,7 +18,7 @@ export const schemas = {
         unformattedAddress: Joi.string().max(500),
         latitude: Joi.number().min(-90).max(90),
         longitude: Joi.number().min(-180).max(180)
-    }).or('city', 'zipCode'), // At least one required
+    }).or('city', 'zipCode', 'geo'), // At least one required - now accepting coordinates as alternative
     
     coordinates: Joi.object({
         lat: Joi.number().min(18).max(72).required(), // US territory bounds

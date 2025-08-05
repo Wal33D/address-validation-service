@@ -452,6 +452,22 @@ async function fetchGeoCoordinates({
 }: {
     formattedAddress: string;
 }) {
+    // First attempt: Standard geocoding
+    const standardResult = await fetchGeoCoordinatesStandard(formattedAddress);
+    
+    // If we got a result but no county, try reverse geocoding with the coordinates
+    if (standardResult && !standardResult.county && standardResult.geo) {
+        const reverseResult = await fetchCountyByCoordinates(standardResult.geo);
+        if (reverseResult?.county) {
+            standardResult.county = reverseResult.county;
+            logger.info('County enriched via reverse geocoding', { county: reverseResult.county });
+        }
+    }
+    
+    return standardResult;
+}
+
+async function fetchGeoCoordinatesStandard(formattedAddress: string) {
     // Check cache first
     const cacheKey = generateGeocacheKey({ address: formattedAddress });
     const cached = geocodingCache.get(cacheKey);
@@ -483,6 +499,49 @@ async function fetchGeoCoordinates({
         return result;
     } catch (err) {
         logger.error('Error fetching geo coordinates:', err);
+        return null;
+    }
+}
+
+// Fetch county specifically using reverse geocoding with result_type filter
+async function fetchCountyByCoordinates(geo: Geo): Promise<any> {
+    try {
+        const [lng, lat] = geo.coordinates;
+        const countyKey = `county:${lat},${lng}`;
+        
+        // Check cache first
+        const cached = geocodingCache.get(countyKey);
+        if (cached) {
+            return cached;
+        }
+        
+        const result = await googleMapsDeduplicator.execute(countyKey, async () => {
+            return googleMapsCircuitBreaker.execute(async () => {
+                // Use result_type filter to specifically get county
+                const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&result_type=administrative_area_level_2&key=${config.googleMaps.apiKey}`;
+                const response = await googleAxios.get(url);
+                
+                if (response.data.status === 'OK' && response.data.results?.length > 0) {
+                    const countyResult = response.data.results[0];
+                    const countyComponent = countyResult.address_components?.find(
+                        (c: any) => c.types.includes('administrative_area_level_2')
+                    );
+                    
+                    if (countyComponent) {
+                        const county = countyComponent.long_name.replace(/\s+County$/i, '');
+                        logger.info('County fetched via reverse geocoding with filter', { county });
+                        const result = { county };
+                        geocodingCache.set(countyKey, result);
+                        return result;
+                    }
+                }
+                return null;
+            });
+        });
+        
+        return result;
+    } catch (err) {
+        logger.error('Error fetching county by coordinates:', err);
         return null;
     }
 }
@@ -610,16 +669,53 @@ export async function ensureValidGeoCoordinates({
 
 // Main correction function
 export async function correctLocation(location: LocationReturn): Promise<any> {
-    // 1) USPS address correction
-    const uspsInput: AddressInput = {
-        ...(location.streetAddress && { streetAddress: location.streetAddress }),
-        ...(location.city && { city: location.city }),
-        ...(location.state && { state: location.state }),
-        ...(location.zipCode && { zipCode: location.zipCode }),
-    };
-    const uspsResult = await correctAddress(uspsInput);
+    // Check if we have coordinates but no city/zip - skip USPS in this case
+    const hasCoordinates = location.geo && location.geo.coordinates && 
+        location.geo.coordinates[0] !== 0 && location.geo.coordinates[1] !== 0;
+    const hasCityOrZip = location.city || location.zipCode;
+    
+    // For coordinates-only cases, try reverse geocoding first to get full address
+    if (hasCoordinates && !hasCityOrZip) {
+        logger.info('Attempting reverse geocoding for coordinates-only address');
+        const reverseResult = await fetchAddressFromCoordinates(location.geo!);
+        if (reverseResult) {
+            // Enrich location with reverse geocoded data
+            location = {
+                ...location,
+                city: reverseResult.city || location.city,
+                zipCode: reverseResult.zipCode || location.zipCode,
+                county: reverseResult.county || location.county,
+                formattedAddress: reverseResult.formattedAddress || location.formattedAddress
+            };
+            logger.info('Location enriched from reverse geocoding', { 
+                city: location.city, 
+                zipCode: location.zipCode,
+                county: location.county 
+            });
+        }
+    }
+    
+    let uspsResult: AddressCorrectionResponse;
+    let updatedLocation: any = { ...location };
 
-    let updatedLocation: any = { ...location, ...uspsResult.location };
+    // 1) USPS address correction (skip if we have coordinates but no city/zip)
+    if (!hasCoordinates || hasCityOrZip) {
+        const uspsInput: AddressInput = {
+            ...(location.streetAddress && { streetAddress: location.streetAddress }),
+            ...(location.city && { city: location.city }),
+            ...(location.state && { state: location.state }),
+            ...(location.zipCode && { zipCode: location.zipCode }),
+        };
+        uspsResult = await correctAddress(uspsInput);
+        updatedLocation = { ...location, ...uspsResult.location };
+    } else {
+        // Skip USPS when we have coordinates but no city/zip
+        uspsResult = { 
+            location: {}, 
+            status: true
+        };
+        logger.info('Skipping USPS correction - have coordinates without city/zip');
+    }
 
     if (typeof updatedLocation.county === 'string') {
         updatedLocation.county = updatedLocation.county
@@ -651,11 +747,17 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
     updatedLocation.formattedAddress =
         geoResult.location.formattedAddress || updatedLocation.formattedAddress;
 
+    // Use Google's results to fill in missing data
+    if (!updatedLocation.city && geoResult.location.city) {
+        updatedLocation.city = geoResult.location.city;
+        logger.info('City added from Google geocoding', { city: updatedLocation.city });
+    }
     if (!updatedLocation.state && geoResult.location.state) {
         updatedLocation.state = geoResult.location.state;
     }
     if (!updatedLocation.zipCode && geoResult.location.zipCode) {
         updatedLocation.zipCode = geoResult.location.zipCode;
+        logger.info('ZipCode added from Google geocoding', { zipCode: updatedLocation.zipCode });
     }
     if (geoResult.location.streetAddress) {
         updatedLocation.streetAddress = geoResult.location.streetAddress;
@@ -665,13 +767,64 @@ export async function correctLocation(location: LocationReturn): Promise<any> {
         logger.info('County added to updatedLocation', { county: updatedLocation.county });
     } else {
         logger.info('No county in geoResult.location', { geoResult: geoResult.location });
+        // Try to fetch county via reverse geocoding if we have coordinates
+        if (updatedLocation.geo && updatedLocation.geo.coordinates[0] !== 0) {
+            const countyResult = await fetchCountyByCoordinates(updatedLocation.geo);
+            if (countyResult?.county) {
+                updatedLocation.county = countyResult.county;
+                logger.info('County enriched for regular address', { county: countyResult.county });
+            }
+        }
     }
     delete updatedLocation.locality;
-    // Keep the original unformattedAddress to show what was passed in
+    
+    // More lenient status logic - if Google geocoding succeeds, consider it a success
+    // especially if it enriches the data with missing city/zip
     const error = uspsResult.error || geoResult.error;
-    const status = uspsResult.status && geoResult.status;
+    
+    // Success if:
+    // 1. Google geocoding succeeded AND
+    // 2. Either USPS succeeded OR we now have complete address data OR we had coords without city/zip
+    const hasCompleteAddress = updatedLocation.streetAddress && 
+                              (updatedLocation.city || updatedLocation.zipCode) && 
+                              updatedLocation.state;
+    
+    const status = geoResult.status && 
+                  (uspsResult.status || hasCompleteAddress || (hasCoordinates && !hasCityOrZip));
 
-    return { ...updatedLocation, status, error };
+    // Debug: Check if updatedLocation contains a status field
+    if ('status' in updatedLocation) {
+        logger.warn('updatedLocation contains status field:', updatedLocation.status);
+    }
+
+    // Create result object with explicit status and error fields
+    // IMPORTANT: Don't spread updatedLocation directly as it may contain a 'status' field
+    const result: any = {
+        streetAddress: updatedLocation.streetAddress,
+        city: updatedLocation.city,
+        state: updatedLocation.state,
+        zipCode: updatedLocation.zipCode,
+        county: updatedLocation.county,
+        geo: updatedLocation.geo,
+        formattedAddress: updatedLocation.formattedAddress,
+        unformattedAddress: updatedLocation.unformattedAddress,
+        // Explicitly set status and error
+        status: status,
+        ...(error && { error: error })
+    };
+    
+    // Check for status field issues
+    logger.debug('Status check:', {
+        calculatedStatus: status,
+        resultStatus: result.status,
+        hasUpdatedLocationStatus: 'status' in updatedLocation,
+        updatedLocationStatus: updatedLocation.status
+    });
+    
+    // Ensure status is always a boolean
+    result.status = Boolean(status);
+    
+    return result;
 }
 
 // Initialize Express app
