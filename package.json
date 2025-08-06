@@ -1,95 +1,97 @@
 {
-	"name": "address-validation-service",
-	"version": "0.1.5",
-	"description": "High-performance address validation and geocoding service combining USPS and Google Maps",
-	"main": "dist/server.js",
-	"author": "Waleed Judah <waleed@glitchgaming.us>",
-	"license": "ISC",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/Wal33D/address-validation-service.git"
-	},
-	"keywords": [
-		"location",
-		"geocoding",
-		"usps",
-		"google-maps",
-		"address-validation",
-		"api",
-		"nodejs",
-		"typescript",
-		"express"
-	],
-	"esModuleInterop": true,
-	"scripts": {
-		"start": "node dist/server.js",
-		"dev": "nodemon --watch src --ext ts,tsx --exec ts-node src/server.ts",
-		"build": "tsc",
-		"test": "jest",
-		"test:watch": "jest --watch",
-		"test:coverage": "jest --coverage",
-		"lint": "eslint 'src/**/*.{ts,tsx}'",
-		"lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
-		"format": "prettier --write 'src/**/*.{ts,tsx,json}'",
-		"format:check": "prettier --check 'src/**/*.{ts,tsx,json}'",
-		"baseline:test": "ts-node baseline-api-tests.ts",
-		"measure:memory": "node measure-memory.js",
-		"prepare": "husky"
-	},
-	"lint-staged": {
-		"*.{ts,tsx}": [
-			"eslint --fix",
-			"prettier --write"
-		],
-		"*.{json,md}": [
-			"prettier --write"
-		]
-	},
-	"nodemonConfig": {
-		"watch": [
-			"src"
-		],
-		"ext": "ts,tsx",
-		"ignore": [
-			"dist/**/*"
-		]
-	},
-	"dependencies": {
-		"@universe/address-parser": "^4.0.0",
-		"axios": "^1.7.7",
-		"commander": "^14.0.0",
-		"compression": "^1.8.1",
-		"cors": "^2.8.5",
-		"dotenv": "^16.4.5",
-		"express": "^5.1.0",
-		"express-rate-limit": "^8.0.1",
-		"googleapis": "^144.0.0",
-		"helmet": "^8.1.0",
-		"joi": "^17.13.3",
-		"nodemon": "^3.1.7",
-		"winston": "^3.17.0"
-	},
-	"devDependencies": {
-		"@types/axios-mock-adapter": "^1.10.4",
-		"@types/compression": "^1.8.1",
-		"@types/cors": "^2.8.19",
-		"@types/express": "^5.0.1",
-		"@types/jest": "^30.0.0",
-		"@types/node": "^20.4.0",
-		"@types/supertest": "^6.0.3",
-		"@typescript-eslint/eslint-plugin": "^8.38.0",
-		"@typescript-eslint/parser": "^8.38.0",
-		"axios-mock-adapter": "^2.1.0",
-		"eslint": "^9.32.0",
-		"eslint-config-prettier": "^10.1.8",
-		"eslint-plugin-prettier": "^5.5.3",
-		"husky": "^9.1.7",
-		"jest": "^30.0.5",
-		"lint-staged": "^16.1.2",
-		"prettier": "^3.6.2",
-		"supertest": "^7.1.4",
-		"ts-jest": "^29.4.0",
-		"ts-node": "^10.9.1",
-		"typescript": "^5.2.2"
-	}
+  "name": "address-validation-service",
+  "version": "0.1.5",
+  "description": "High-performance address validation and geocoding service combining USPS and Google Maps",
+  "main": "dist/server.js",
+  "author": "Waleed Judah <waleed@glitchgaming.us>",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wal33D/address-validation-service.git"
+  },
+  "keywords": [
+    "location",
+    "geocoding",
+    "usps",
+    "google-maps",
+    "address-validation",
+    "api",
+    "nodejs",
+    "typescript",
+    "express"
+  ],
+  "esModuleInterop": true,
+  "scripts": {
+    "dev": "nodemon --watch src --ext ts,tsx --exec ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
+    "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
+    "format": "prettier --write 'src/**/*.{ts,tsx,json}'",
+    "format:check": "prettier --check 'src/**/*.{ts,tsx,json}'",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist coverage logs",
+    "prepare": "husky install && npm run build || true",
+    "baseline:test": "ts-node baseline-api-tests.ts",
+    "measure:memory": "node measure-memory.js"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "nodemonConfig": {
+    "watch": [
+      "src"
+    ],
+    "ext": "ts,tsx",
+    "ignore": [
+      "dist/**/*"
+    ]
+  },
+  "dependencies": {
+    "@universe/address-parser": "^4.0.0",
+    "axios": "^1.7.7",
+    "commander": "^14.0.0",
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "googleapis": "^144.0.0",
+    "helmet": "^8.1.0",
+    "joi": "^17.13.3",
+    "nodemon": "^3.1.7",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/axios-mock-adapter": "^1.10.4",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.4.0",
+    "@types/supertest": "^6.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "axios-mock-adapter": "^2.1.0",
+    "eslint": "^9.32.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "husky": "^9.1.7",
+    "jest": "^30.0.5",
+    "lint-staged": "^16.1.2",
+    "prettier": "^3.6.2",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  }
 }
