@@ -6,6 +6,7 @@ export interface Geo {
 export interface LocationReturn {
   unformattedAddress: string;
   formattedAddress: string;
+  normalizedAddress?: string; // New field for normalized address
   latitude: number;
   longitude: number;
   county?: string;
@@ -119,6 +120,7 @@ export interface LocationCorrectionResult {
   county?: string;
   geo: Geo;
   formattedAddress?: string;
+  normalizedAddress?: string; // Normalized version for consistent comparison
   unformattedAddress?: string;
   status: boolean;
   error?: string;
