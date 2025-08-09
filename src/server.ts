@@ -31,57 +31,13 @@ import express, { Request, Response } from 'express';
 import { LRUCache, generateGeocacheKey } from './utils/LRUCache';
 import { uspsDeduplicator, googleMapsDeduplicator } from './utils/RequestDeduplicator';
 import { uspsCircuitBreaker, googleMapsCircuitBreaker } from './utils/CircuitBreaker';
+import { normalizeAddress } from './utils/normalizeAddress';
 
 // Suppress dotenv logging by intercepting console.log temporarily
 const originalLog = console.log;
 console.log = () => {};
 dotenv.config();
 console.log = originalLog;
-
-/**
- * Normalize an address for consistent comparison
- * Converts abbreviations to full words and standardizes formatting
- */
-function normalizeAddress(address: string): string {
-  if (!address) return '';
-
-  return (
-    address
-      .toLowerCase()
-      .replace(/,|\./g, '') // Remove commas and periods
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      // Common street abbreviations
-      .replace(/\bdr\b/g, 'drive')
-      .replace(/\bst\b/g, 'street')
-      .replace(/\bave\b/g, 'avenue')
-      .replace(/\brd\b/g, 'road')
-      .replace(/\bct\b/g, 'court')
-      .replace(/\bln\b/g, 'lane')
-      .replace(/\bblvd\b/g, 'boulevard')
-      .replace(/\bpkwy\b/g, 'parkway')
-      .replace(/\bpl\b/g, 'place')
-      .replace(/\bcir\b/g, 'circle')
-      .replace(/\bhwy\b/g, 'highway')
-      .replace(/\bterr?\b/g, 'terrace')
-      .replace(/\btrail\b/g, 'trail')
-      .replace(/\bway\b/g, 'way')
-      // Direction abbreviations
-      .replace(/\bn\b/g, 'north')
-      .replace(/\bs\b/g, 'south')
-      .replace(/\be\b/g, 'east')
-      .replace(/\bw\b/g, 'west')
-      .replace(/\bne\b/g, 'northeast')
-      .replace(/\bnw\b/g, 'northwest')
-      .replace(/\bse\b/g, 'southeast')
-      .replace(/\bsw\b/g, 'southwest')
-      // Common apartment/unit abbreviations
-      .replace(/\bapt\b/g, 'apartment')
-      .replace(/\bste\b/g, 'suite')
-      .replace(/\bunit\b/g, 'unit')
-      .replace(/\bbldg\b/g, 'building')
-      .trim()
-  );
-}
 
 // Initialize caches
 const geocodingCache = new LRUCache<string, GeocodingResult>(
