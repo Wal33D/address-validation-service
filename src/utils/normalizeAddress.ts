@@ -679,6 +679,15 @@ export function normalizeAddress(address: string): string {
 
   let normalized = address.toLowerCase();
 
+  // Handle ampersand specifically before removing punctuation
+  normalized = normalized.replace(/&/g, ' and ');
+
+  // Handle compound direction abbreviations with periods (S.E., N.W., etc.)
+  normalized = normalized.replace(/\bs\.e\./gi, 'southeast');
+  normalized = normalized.replace(/\bn\.e\./gi, 'northeast');
+  normalized = normalized.replace(/\bs\.w\./gi, 'southwest');
+  normalized = normalized.replace(/\bn\.w\./gi, 'northwest');
+
   // Remove all punctuation except spaces and hyphens (initially)
   normalized = normalized.replace(/[^\w\s-]/g, ' ');
 
@@ -710,7 +719,38 @@ export function normalizeAddress(address: string): string {
       return DIRECTIONS[token];
     }
 
-    // Check if it's a street type
+    // Special handling for 'st' which could be 'saint' or 'street'
+    // Must check this BEFORE checking street types
+    if (token === 'st') {
+      // Check if next token looks like a saint name (common ones)
+      // This check happens regardless of what comes before 'st'
+      if (
+        index < tokens.length - 1 &&
+        (tokens[index + 1] === 'johns' ||
+          tokens[index + 1] === 'john' ||
+          tokens[index + 1] === 'mary' ||
+          tokens[index + 1] === 'marys' ||
+          tokens[index + 1] === 'paul' ||
+          tokens[index + 1] === 'pauls' ||
+          tokens[index + 1] === 'peter' ||
+          tokens[index + 1] === 'peters' ||
+          tokens[index + 1] === 'james' ||
+          tokens[index + 1] === 'joseph' ||
+          tokens[index + 1] === 'anthony' ||
+          tokens[index + 1] === 'francis' ||
+          tokens[index + 1] === 'louis' ||
+          tokens[index + 1] === 'george' ||
+          tokens[index + 1] === 'patrick' ||
+          tokens[index + 1] === 'thomas' ||
+          tokens[index + 1] === 'michael')
+      ) {
+        return 'saint';
+      }
+      // Default to street
+      return 'street';
+    }
+
+    // Check if it's a street type (other than 'st' which we handled above)
     if (STREET_TYPES[token]) {
       return STREET_TYPES[token];
     }
@@ -720,28 +760,17 @@ export function normalizeAddress(address: string): string {
       return UNIT_TYPES[token];
     }
 
-    // Check if it's a state abbreviation (only at end of address)
-    if (index === tokens.length - 2 || index === tokens.length - 3) {
+    // Check if it's a state abbreviation (only at end of address or near end)
+    if (index >= tokens.length - 3) {
       if (STATES[token]) {
         return STATES[token];
       }
     }
 
-    // Check for special prefixes (only at beginning of words)
+    // Check for other special prefixes (mt, ft, etc.)
     if (index === 0 || (index > 0 && !tokens[index - 1].match(/^\d+$/))) {
-      if (PREFIXES[token]) {
-        // Don't convert 'st' to 'saint' if it's likely 'street'
-        if (token === 'st' || token === 'st.') {
-          // Check if next token looks like a street name
-          if (
-            index < tokens.length - 1 &&
-            !tokens[index + 1].match(
-              /^(john|mary|paul|peter|james|joseph|anthony|francis|louis|george|patrick|thomas|michael)s?$/
-            )
-          ) {
-            return STREET_TYPES['st'] || token;
-          }
-        }
+      if (PREFIXES[token] && token !== 'st') {
+        // Exclude 'st' as we handled it above
         return PREFIXES[token];
       }
     }
@@ -751,14 +780,9 @@ export function normalizeAddress(address: string): string {
       return 'post office';
     }
 
-    // Remove common noise words
-    if (['the', 'of', 'and', 'at'].includes(token)) {
+    // Remove common noise words (but keep 'and' from ampersand conversion)
+    if (['the', 'of', 'at'].includes(token)) {
       return '';
-    }
-
-    // Handle ampersand
-    if (token === '&' || token === 'and') {
-      return 'and';
     }
 
     // Handle number symbols
