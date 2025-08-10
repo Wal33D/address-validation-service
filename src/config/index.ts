@@ -51,7 +51,7 @@ function validateConfig(): Config {
     'USPS_ADDRESS_URL',
     'USPS_CONSUMER_KEY',
     'USPS_CONSUMER_SECRET',
-    'GMAPS_API_KEY',
+    'GOOGLE_MAPS_API_KEY',
   ];
 
   const missing = requiredEnvVars.filter(key => !process.env[key]);
@@ -72,7 +72,7 @@ function validateConfig(): Config {
     },
 
     googleMaps: {
-      apiKey: process.env['GMAPS_API_KEY']!,
+      apiKey: process.env['GOOGLE_MAPS_API_KEY']!,
     },
 
     security: {
