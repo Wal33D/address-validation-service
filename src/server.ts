@@ -30,7 +30,6 @@ import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import express, { Request, Response } from 'express';
 import { LRUCache, generateGeocacheKey } from './utils/LRUCache';
 import { uspsDeduplicator, googleMapsDeduplicator } from './utils/RequestDeduplicator';
-import { uspsCircuitBreaker, googleMapsCircuitBreaker } from './utils/CircuitBreaker';
 import { normalizeAddress } from './utils/normalizeAddress';
 
 // Suppress dotenv logging by intercepting console.log temporarily
@@ -137,31 +136,29 @@ async function getUSPSToken(): Promise<string | null> {
 
   // Use deduplication and circuit breaker for token requests
   return uspsDeduplicator.execute('usps-token', async () => {
-    return uspsCircuitBreaker.execute(async () => {
-      const body = new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: config.usps.consumerKey,
-        client_secret: config.usps.consumerSecret,
-        scope: 'addresses',
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: config.usps.consumerKey,
+      client_secret: config.usps.consumerSecret,
+      scope: 'addresses',
+    });
+
+    try {
+      const response = await uspsAxios.post(config.usps.tokenUrl, body.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
-      try {
-        const response = await uspsAxios.post(config.usps.tokenUrl, body.toString(), {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        });
+      const data = response.data as USPSTokenResponse;
+      cachedToken = data.access_token;
+      tokenExpiresAt = Date.now() + data.expires_in * 1000;
 
-        const data = response.data as USPSTokenResponse;
-        cachedToken = data.access_token;
-        tokenExpiresAt = Date.now() + data.expires_in * 1000;
-
-        logger.info('USPS token refreshed successfully');
-        return cachedToken;
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error('Failed to get USPS token', { error: errorMessage });
-        throw new Error(errorMessage); // Let circuit breaker handle the failure
-      }
-    });
+      logger.info('USPS token refreshed successfully');
+      return cachedToken;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to get USPS token', { error: errorMessage });
+      throw new Error(errorMessage);
+    }
   }) as Promise<string | null>;
 }
 
@@ -250,12 +247,10 @@ export async function correctAddress({
     const data = (await uspsDeduplicator.execute(
       addressKey,
       async (): Promise<USPSAddressResponse> => {
-        return uspsCircuitBreaker.execute(async () => {
-          const response = await uspsAxios.get(url, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          return response.data as USPSAddressResponse;
+        const response = await uspsAxios.get(url, {
+          headers: { Authorization: `Bearer ${token}` },
         });
+        return response.data as USPSAddressResponse;
       }
     )) as USPSAddressResponse;
 
@@ -311,12 +306,10 @@ export async function correctAddress({
         const retryData = (await uspsDeduplicator.execute(
           zipOnlyKey,
           async (): Promise<USPSAddressResponse> => {
-            return uspsCircuitBreaker.execute(async () => {
-              const response = await uspsAxios.get(zipOnlyUrl, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              return response.data as USPSAddressResponse;
+            const response = await uspsAxios.get(zipOnlyUrl, {
+              headers: { Authorization: `Bearer ${token}` },
             });
+            return response.data as USPSAddressResponse;
           }
         )) as USPSAddressResponse;
 
@@ -482,14 +475,12 @@ async function fetchGeoCoordinatesStandard(
     const result = (await googleMapsDeduplicator.execute(
       geocodeKey,
       async (): Promise<GeocodingResult | null> => {
-        return googleMapsCircuitBreaker.execute(async () => {
-          const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-            formattedAddress
-          )}&key=${config.googleMaps.apiKey}`;
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+          formattedAddress
+        )}&key=${config.googleMaps.apiKey}`;
 
-          const response = await googleAxios.get(url);
-          return parseFirstGmapsResult(response.data);
-        });
+        const response = await googleAxios.get(url);
+        return parseFirstGmapsResult(response.data);
       }
     )) as GeocodingResult | null;
 
@@ -520,28 +511,26 @@ async function fetchCountyByCoordinates(geo: Geo): Promise<CountyResult | null> 
     const result = (await googleMapsDeduplicator.execute(
       countyKey,
       async (): Promise<CountyResult | null> => {
-        return googleMapsCircuitBreaker.execute(async () => {
-          // Use result_type filter to specifically get county
-          const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&result_type=administrative_area_level_2&key=${config.googleMaps.apiKey}`;
-          const response = await googleAxios.get(url);
+        // Use result_type filter to specifically get county
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&result_type=administrative_area_level_2&key=${config.googleMaps.apiKey}`;
+        const response = await googleAxios.get(url);
 
-          const responseData = response.data as GoogleMapsResponse;
-          if (responseData.status === 'OK' && responseData.results?.length > 0) {
-            const countyResult = responseData.results[0];
-            const countyComponent = countyResult.address_components?.find(
-              (c: GoogleAddressComponent) => c.types.includes('administrative_area_level_2')
-            );
+        const responseData = response.data as GoogleMapsResponse;
+        if (responseData.status === 'OK' && responseData.results?.length > 0) {
+          const countyResult = responseData.results[0];
+          const countyComponent = countyResult.address_components?.find(
+            (c: GoogleAddressComponent) => c.types.includes('administrative_area_level_2')
+          );
 
-            if (countyComponent) {
-              const county = countyComponent.long_name.replace(/\s+County$/i, '');
-              logger.info('County fetched via reverse geocoding with filter', { county });
-              const result = { county };
-              countyCache.set(countyKey, result);
-              return result;
-            }
+          if (countyComponent) {
+            const county = countyComponent.long_name.replace(/\s+County$/i, '');
+            logger.info('County fetched via reverse geocoding with filter', { county });
+            const result = { county };
+            countyCache.set(countyKey, result);
+            return result;
           }
-          return null;
-        });
+        }
+        return null;
       }
     )) as CountyResult | null;
 
@@ -570,11 +559,9 @@ async function fetchAddressFromCoordinates(geo: Geo): Promise<GeocodingResult | 
     const result = (await googleMapsDeduplicator.execute(
       reverseGeocodeKey,
       async (): Promise<GeocodingResult | null> => {
-        return googleMapsCircuitBreaker.execute(async () => {
-          const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${config.googleMaps.apiKey}`;
-          const response = await googleAxios.get(url);
-          return parseFirstGmapsResult(response.data);
-        });
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${config.googleMaps.apiKey}`;
+        const response = await googleAxios.get(url);
+        return parseFirstGmapsResult(response.data);
       }
     )) as GeocodingResult | null;
 
@@ -872,10 +859,6 @@ app.get('/health', (_req: Request, res: Response) => {
     deduplication: {
       usps: uspsDeduplicator.getStats(),
       googleMaps: googleMapsDeduplicator.getStats(),
-    },
-    circuitBreakers: {
-      usps: uspsCircuitBreaker.getStats(),
-      googleMaps: googleMapsCircuitBreaker.getStats(),
     },
   };
 

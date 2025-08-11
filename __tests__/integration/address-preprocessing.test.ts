@@ -30,14 +30,7 @@ jest.mock('../../src/utils/RequestDeduplicator', () => ({
   },
 }));
 
-jest.mock('../../src/utils/CircuitBreaker', () => ({
-  uspsCircuitBreaker: {
-    execute: jest.fn(fn => fn()),
-  },
-  googleMapsCircuitBreaker: {
-    execute: jest.fn(fn => fn()),
-  },
-}));
+// Circuit breaker removed - no longer needed
 
 describe('Address Preprocessing Integration', () => {
   beforeEach(() => {
