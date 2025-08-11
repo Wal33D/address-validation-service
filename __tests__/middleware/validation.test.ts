@@ -68,20 +68,18 @@ describe('Validation Middleware', () => {
       expect(mockNext).toHaveBeenCalledWith();
     });
 
-    it('should require streetAddress', () => {
+    it('should allow requests with only city and state', () => {
       mockReq.body = {
         city: 'New York',
         state: 'NY',
       };
 
-      expect(() => {
-        validateLocationRequest(mockReq as Request, mockRes as Response, mockNext);
-      }).toThrow(ValidationError);
+      validateLocationRequest(mockReq as Request, mockRes as Response, mockNext);
+      expect(mockNext).toHaveBeenCalledWith();
     });
 
-    it('should require either city or zipCode', () => {
+    it('should require at least one of streetAddress, city, zipCode, or geo', () => {
       mockReq.body = {
-        streetAddress: '123 Main St',
         state: 'NY',
       };
 
