@@ -2,13 +2,14 @@ module.exports = {
   apps: [
     {
       name: 'address-validation-service',
-      script: 'dist/server.js',
+      script: 'startup.sh',
+      cwd: '/home/puppeteer-user/candycomp-location-correction',
       exec_mode: 'fork',
-      max_memory_restart: '138M',
+      max_memory_restart: '256M',
       autorestart: true,
       watch: false,
-      max_restarts: 10,
-      min_uptime: '20s',
+      max_restarts: 50,
+      min_uptime: '10s',
       restart_delay: 4000,
 
       error_file: './logs/error.log',
@@ -33,7 +34,6 @@ module.exports = {
 
       cron_restart: '0 3 * * *',
       wait_ready: true,
-      post_update: ['npm install', 'npm run build'],
     },
   ],
 };
