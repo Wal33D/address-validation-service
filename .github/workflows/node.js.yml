@@ -30,7 +30,6 @@ jobs:
           path: |
             dist
             ecosystem.config.js
-            startup.sh
             package.json
             package-lock.json
 
@@ -100,6 +99,8 @@ jobs:
           script: |
             cd /home/puppeteer-user/candycomp-location-correction
             npm ci
+            # Rebuild native modules for current Node version
+            npm rebuild || true
 
       - name: Start or Reload and Save PM2 Process on Linode
         uses: appleboy/ssh-action@master
