@@ -30,6 +30,7 @@ jobs:
           path: |
             dist
             ecosystem.config.js
+            startup.sh
             package.json
             package-lock.json
 
