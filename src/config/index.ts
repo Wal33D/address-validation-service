@@ -11,6 +11,7 @@ interface Config {
   // Server
   port: number;
   nodeEnv: string;
+  disableLocalOnly: boolean;
 
   // USPS API
   usps: {
@@ -63,6 +64,7 @@ function validateConfig(): Config {
   return {
     port: parseInt(process.env['PORT'] || '3715', 10),
     nodeEnv: process.env['NODE_ENV'] || 'development',
+    disableLocalOnly: process.env['DISABLE_LOCAL_ONLY'] === 'true',
 
     usps: {
       tokenUrl: process.env['USPS_TOKEN_URL']!,

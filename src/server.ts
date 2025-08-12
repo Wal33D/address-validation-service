@@ -870,8 +870,10 @@ if (config.nodeEnv === 'production' || process.env['ENABLE_SECURITY'] === 'true'
   app.use(...securityMiddleware());
 }
 
-// Local only middleware
-app.use(localOnlyMiddleware);
+// Apply local-only middleware for actual API endpoints (unless disabled)
+if (!config.disableLocalOnly) {
+  app.use(localOnlyMiddleware);
+}
 
 // Cache stats endpoint
 app.get('/cache/stats', (_req: Request, res: Response) => {
