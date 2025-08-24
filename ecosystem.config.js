@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'address-validation-service',
       script: 'dist/server.js',
-      cwd: '/home/puppeteer-user/candycomp-location-correction',
+      cwd: '/root/address-validation-service',
       exec_mode: 'fork',
       max_memory_restart: '256M',
       autorestart: true,
