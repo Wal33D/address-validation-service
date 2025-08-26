@@ -21,6 +21,7 @@ module.exports = {
 
       env: {
         NODE_ENV: 'production',
+        LOG_LEVEL: 'error', // Reduce disk writes by ~90%
         PORT: 3715,
       },
       env_development: {
