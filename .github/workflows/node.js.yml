@@ -46,7 +46,7 @@ jobs:
       - name: List downloaded artifact
         run: ls -la build-files
 
-      - name: Ensure target directory exists on Linode
+      - name: Ensure target directory exists on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -55,7 +55,7 @@ jobs:
           script: |
             mkdir -p /root/address-validation-service
 
-      - name: Copy Build Files to Linode Server
+      - name: Copy Build Files to Server
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -65,7 +65,7 @@ jobs:
           target: '/root/address-validation-service/'
           strip_components: 1
 
-      - name: Create .env file on Linode
+      - name: Create .env file on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -90,7 +90,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: 'ls -la /root/address-validation-service/'
 
-      - name: Install Node Modules on Linode
+      - name: Install Node Modules on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -102,7 +102,7 @@ jobs:
             # Rebuild native modules for current Node version
             npm rebuild || true
 
-      - name: Start or Reload and Save PM2 Process on Linode
+      - name: Start or Reload and Save PM2 Process on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
