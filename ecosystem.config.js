@@ -7,8 +7,8 @@ module.exports = {
       max_memory_restart: '256M',
       autorestart: true,
       watch: false,
-      max_restarts: 10, // Standardized to 10 like other services
-      min_uptime: '20s', // Standardized to 20s
+      max_restarts: 50,
+      min_uptime: '10s',
       restart_delay: 4000,
       exp_backoff_restart_delay: 30000, // Added exponential backoff
 
