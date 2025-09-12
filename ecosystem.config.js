@@ -3,14 +3,14 @@ module.exports = {
     {
       name: 'address-validation-service',
       script: 'dist/server.js',
-      cwd: '/root/address-validation-service',
       exec_mode: 'fork',
       max_memory_restart: '256M',
       autorestart: true,
       watch: false,
-      max_restarts: 50,
-      min_uptime: '10s',
+      max_restarts: 10, // Standardized to 10 like other services
+      min_uptime: '20s', // Standardized to 20s
       restart_delay: 4000,
+      exp_backoff_restart_delay: 30000, // Added exponential backoff
 
       error_file: './logs/error.log',
       out_file: './logs/out.log',
@@ -35,6 +35,10 @@ module.exports = {
 
       cron_restart: '0 3 * * *',
       wait_ready: true,
+      post_update: [
+        'npm ci --omit=dev || npm install --production --ignore-scripts',
+        'npm run build',
+      ],
     },
   ],
 };
